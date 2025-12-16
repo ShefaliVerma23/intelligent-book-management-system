@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: bookmanager
+      POSTGRES_PASSWORD: bookpassword
+      POSTGRES_DB: book_management
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - book-network
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://bookmanager:bookpassword@db:5432/book_management
+      SECRET_KEY: your-super-secret-key-for-production
+    depends_on:
+      - db
+    networks:
+      - book-network
+    volumes:
+      - ../:/app
+
+  # Optional: Redis for caching (can be added later)
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - book-network
+
+volumes:
+  postgres_data:
+
+networks:
+  book-network:
+    driver: bridge

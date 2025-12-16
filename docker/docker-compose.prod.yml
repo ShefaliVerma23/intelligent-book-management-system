@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bookmanager}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-book_management}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - book-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookmanager}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bookmanager}:${POSTGRES_PASSWORD:-bookpassword}@db:5432/${POSTGRES_DB:-book_management}
+      SECRET_KEY: ${SECRET_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - book-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching (optional but recommended for production)
+  redis:
+    image: redis:7-alpine
+    networks:
+      - book-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx reverse proxy (optional for production)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro  # SSL certificates
+    depends_on:
+      - api
+    networks:
+      - book-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  book-network:
+    driver: bridge
