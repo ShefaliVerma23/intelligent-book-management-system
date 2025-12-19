@@ -1,46 +1,108 @@
 version: '3.8'
 
+# =============================================================================
+# Docker Compose - Intelligent Book Management System
+# =============================================================================
+# Quick Start:
+#   docker-compose up -d
+#
+# With custom .env file:
+#   docker-compose --env-file ../.env up -d
+# =============================================================================
+
 services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
   db:
     image: postgres:15
+    container_name: intelligent_books_db
     environment:
-      POSTGRES_USER: bookmanager
-      POSTGRES_PASSWORD: bookpassword
-      POSTGRES_DB: book_management
+      POSTGRES_USER: ${POSTGRES_USER:-bookadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-BookPass@2024Secure}
+      POSTGRES_DB: ${POSTGRES_DB:-intelligent_books_db}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - book-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookadmin} -d ${POSTGRES_DB:-intelligent_books_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ---------------------------------------------------------------------------
+  # FastAPI Application
+  # ---------------------------------------------------------------------------
   api:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    container_name: intelligent_books_api
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     environment:
-      DATABASE_URL: postgresql://bookmanager:bookpassword@db:5432/book_management
-      SECRET_KEY: your-super-secret-key-for-production
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bookadmin}:${POSTGRES_PASSWORD:-BookPass@2024Secure}@db:5432/${POSTGRES_DB:-intelligent_books_db}
+      
+      # Security
+      SECRET_KEY: ${SECRET_KEY:-f8a7b3c9d2e1f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      
+      # AI Configuration
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-meta-llama/llama-3-8b-instruct:free}
+      LLAMA_MODEL_PATH: ${LLAMA_MODEL_PATH:-microsoft/DialoGPT-medium}
+      LLAMA_MAX_LENGTH: ${LLAMA_MAX_LENGTH:-512}
+      LLAMA_TEMPERATURE: ${LLAMA_TEMPERATURE:-0.7}
+      
+      # Application
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+      
+      # Redis Cache
+      REDIS_URL: redis://redis:6379/0
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - book-network
     volumes:
       - ../:/app
+    restart: unless-stopped
 
-  # Optional: Redis for caching (can be added later)
-  # redis:
-  #   image: redis:7-alpine
-  #   ports:
-  #     - "6379:6379"
-  #   networks:
-  #     - book-network
+  # ---------------------------------------------------------------------------
+  # Redis Cache (for recommendations and AI summaries)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: intelligent_books_redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - book-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
 
 volumes:
   postgres_data:
+    name: intelligent_books_postgres_data
+  redis_data:
+    name: intelligent_books_redis_data
 
 networks:
   book-network:
+    name: intelligent_books_network
     driver: bridge

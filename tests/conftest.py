@@ -2,9 +2,10 @@
 Test configuration and fixtures
 """
 import pytest
+import pytest_asyncio
 import asyncio
 from typing import AsyncGenerator
-from fastapi.testclient import TestClient
+from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -43,42 +44,48 @@ app.dependency_overrides[get_db] = override_get_db
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def setup_database():
-    """Set up test database"""
+    """Set up test database - fresh for each test"""
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_session(setup_database) -> AsyncGenerator[AsyncSession, None]:
     """Create a fresh database session for each test"""
     async with TestSessionLocal() as session:
         yield session
-        await session.rollback()
 
 
-@pytest.fixture
-def client():
-    """Create test client"""
-    return TestClient(app)
+@pytest_asyncio.fixture
+async def async_client(setup_database) -> AsyncGenerator[AsyncClient, None]:
+    """Create async test client"""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_user(db_session: AsyncSession) -> User:
     """Create a test user"""
     user = User(
         username="testuser",
         email="test@example.com",
         full_name="Test User",
+        preferred_genres='["Fiction", "Science Fiction"]',
         is_active=True
     )
     user.set_password("testpassword123")
@@ -89,7 +96,7 @@ async def test_user(db_session: AsyncSession) -> User:
     return user
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_admin_user(db_session: AsyncSession) -> User:
     """Create a test admin user"""
     user = User(
@@ -107,17 +114,15 @@ async def test_admin_user(db_session: AsyncSession) -> User:
     return user
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_book(db_session: AsyncSession) -> Book:
-    """Create a test book"""
+    """Create a test book - matches actual Book model"""
     book = Book(
         title="Test Book",
         author="Test Author",
-        isbn="1234567890123",
         genre="Fiction",
-        publication_year=2023,
-        description="A test book for testing purposes",
-        pages=300
+        year_published=2023,
+        summary="A test book for testing purposes. This is a great book about testing."
     )
     
     db_session.add(book)
@@ -126,18 +131,47 @@ async def test_book(db_session: AsyncSession) -> Book:
     return book
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
+async def test_book2(db_session: AsyncSession) -> Book:
+    """Create a second test book"""
+    book = Book(
+        title="Another Test Book",
+        author="Another Author",
+        genre="Science Fiction",
+        year_published=2022,
+        summary="Another test book for testing recommendations."
+    )
+    
+    db_session.add(book)
+    await db_session.commit()
+    await db_session.refresh(book)
+    return book
+
+
+@pytest_asyncio.fixture
 async def test_review(db_session: AsyncSession, test_user: User, test_book: Book) -> Review:
-    """Create a test review"""
+    """Create a test review - matches actual Review model"""
     review = Review(
         book_id=test_book.id,
         user_id=test_user.id,
         rating=4.5,
-        title="Great Book!",
-        content="This book is really good and I enjoyed reading it."
+        review_text="This book is really good and I enjoyed reading it."
     )
     
     db_session.add(review)
     await db_session.commit()
     await db_session.refresh(review)
     return review
+
+
+@pytest_asyncio.fixture
+async def auth_headers(async_client: AsyncClient, test_user: User) -> dict:
+    """Get authentication headers for a test user"""
+    response = await async_client.post(
+        "/api/v1/auth/login",
+        data={"username": "testuser", "password": "testpassword123"}
+    )
+    if response.status_code == 200:
+        token = response.json()["access_token"]
+        return {"Authorization": f"Bearer {token}"}
+    return {}

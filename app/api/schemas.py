@@ -39,15 +39,9 @@ class UserResponse(UserBase):
 class BookBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     author: str = Field(..., min_length=1, max_length=255)
-    isbn: Optional[str] = Field(None, max_length=13)
-    publisher: Optional[str] = Field(None, max_length=255)
-    publication_year: Optional[int] = Field(None, ge=1000, le=2024)
-    description: Optional[str] = None
     genre: Optional[str] = Field(None, max_length=100)
-    language: Optional[str] = Field("English", max_length=50)
-    pages: Optional[int] = Field(None, ge=1)
-    available_copies: Optional[int] = Field(1, ge=0)
-    total_copies: Optional[int] = Field(1, ge=1)
+    year_published: Optional[int] = Field(None, ge=1000, le=2100)
+    summary: Optional[str] = None
 
 
 class BookCreate(BookBase):
@@ -57,23 +51,13 @@ class BookCreate(BookBase):
 class BookUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     author: Optional[str] = Field(None, min_length=1, max_length=255)
-    isbn: Optional[str] = Field(None, max_length=13)
-    publisher: Optional[str] = Field(None, max_length=255)
-    publication_year: Optional[int] = Field(None, ge=1000, le=2024)
-    description: Optional[str] = None
     genre: Optional[str] = Field(None, max_length=100)
-    language: Optional[str] = Field(None, max_length=50)
-    pages: Optional[int] = Field(None, ge=1)
-    available_copies: Optional[int] = Field(None, ge=0)
-    total_copies: Optional[int] = Field(None, ge=1)
+    year_published: Optional[int] = Field(None, ge=1000, le=2100)
+    summary: Optional[str] = None
 
 
 class BookResponse(BookBase):
     id: int
-    ai_summary: Optional[str] = None
-    summary_generated: bool = False
-    average_rating: float = 0.0
-    total_reviews: int = 0
     created_at: datetime
     updated_at: datetime
     
@@ -84,26 +68,23 @@ class BookResponse(BookBase):
 # Review schemas
 class ReviewBase(BaseModel):
     rating: float = Field(..., ge=1.0, le=5.0)
-    title: Optional[str] = Field(None, max_length=255)
-    content: Optional[str] = None
+    review_text: Optional[str] = None
 
 
 class ReviewCreate(ReviewBase):
     book_id: int
+    user_id: int = Field(default=1, description="User ID (defaults to 1 for demo purposes)")
 
 
 class ReviewUpdate(BaseModel):
     rating: Optional[float] = Field(None, ge=1.0, le=5.0)
-    title: Optional[str] = Field(None, max_length=255)
-    content: Optional[str] = None
+    review_text: Optional[str] = None
 
 
 class ReviewResponse(ReviewBase):
     id: int
     book_id: int
     user_id: int
-    helpful_votes: int = 0
-    ai_summary: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     

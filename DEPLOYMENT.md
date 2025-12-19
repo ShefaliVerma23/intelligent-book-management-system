@@ -1,411 +1,515 @@
 # Deployment Guide
 
-This document provides detailed instructions for deploying the Intelligent Book Management System in various environments.
+This document provides detailed instructions for deploying the Intelligent Book Management System using Docker.
 
-## Quick Start (Development)
+---
 
-1. **Clone and Setup**
-   ```bash
-   git clone <repository-url>
-   cd intelligent-book-management-system
-   cp sample.env .env  # Edit with your settings
-   ```
+## Table of Contents
 
-2. **Using Docker Compose (Recommended)**
-   ```bash
-   cd docker
-   docker-compose up -d
-   ```
-   
-   The application will be available at:
-   - API: http://localhost:8000
-   - Documentation: http://localhost:8000/docs
+1. [Quick Start](#quick-start)
+2. [Docker-based Deployment](#docker-based-deployment)
+3. [Environment Configuration](#environment-configuration)
+4. [Database Setup](#database-setup)
+5. [Health Monitoring](#health-monitoring)
+6. [Troubleshooting](#troubleshooting)
 
-## Production Deployment Options
+---
 
-### 1. Docker-based Deployment (Cloud-Ready)
+## Quick Start
 
-#### Prerequisites
-- Docker and Docker Compose installed
-- PostgreSQL database (can be containerized or external)
-- Domain name (optional, for SSL)
+### Option 1: Docker Compose (Recommended)
 
-#### Steps
+```bash
+# Clone the repository
+git clone <repository-url>
+cd intelligent-book-management-system
 
-1. **Environment Configuration**
-   ```bash
-   # Create production environment file
-   cp sample.env .env.prod
-   
-   # Edit .env.prod with production values:
-   # - Strong SECRET_KEY (32+ characters)
-   # - Production database URL
-   # - OpenRouter API key for AI features
-   # - Set LOG_LEVEL=INFO or WARNING
-   ```
+# Copy and configure environment file
+cp sample.env .env
 
-2. **Deploy with Production Compose**
-   ```bash
-   cd docker
-   docker-compose -f docker-compose.prod.yml --env-file ../.env.prod up -d
-   ```
+# Edit .env with your settings (important: change SECRET_KEY and passwords)
+nano .env  # or use your preferred editor
 
-3. **Database Migration**
-   ```bash
-   # Run inside the container
-   docker exec -it <container_name> alembic upgrade head
-   ```
+# Start with Docker Compose
+cd docker
+docker-compose --env-file ../.env up -d
+```
 
-### 2. AWS Deployment
+The application will be available at:
+- **API**: http://localhost:8000
+- **Documentation**: http://localhost:8000/docs
+- **Health Check**: http://localhost:8000/health
+- **Cache Stats**: http://localhost:8000/cache/stats
 
-#### Option A: EC2 + RDS
+### Option 2: Local Development
 
-1. **Setup RDS PostgreSQL Instance**
-   - Launch RDS PostgreSQL 15
-   - Configure security groups
-   - Note connection string
+```bash
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
-2. **Launch EC2 Instance**
-   ```bash
-   # On EC2 instance
-   sudo yum update -y
-   sudo yum install -y docker
-   sudo service docker start
-   sudo usermod -a -G docker ec2-user
-   
-   # Install Docker Compose
-   sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-   sudo chmod +x /usr/local/bin/docker-compose
-   ```
+# Install dependencies
+pip install -r requirements.txt
 
-3. **Deploy Application**
-   ```bash
-   # Clone repository
-   git clone <repository-url>
-   cd intelligent-book-management-system
-   
-   # Configure environment
-   cp sample.env .env
-   # Edit .env with RDS connection string
-   
-   # Deploy
-   cd docker
-   docker-compose -f docker-compose.prod.yml up -d
-   ```
+# Configure environment
+cp sample.env .env
+# Edit .env with your database settings
 
-4. **Configure Load Balancer**
-   - Create Application Load Balancer
-   - Configure target group (port 8000)
-   - Add SSL certificate
-   - Configure health checks (`/health` endpoint)
+# Run migrations
+alembic upgrade head
 
-#### Option B: ECS with Fargate
+# Start the server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-1. **Build and Push to ECR**
-   ```bash
-   # Create ECR repository
-   aws ecr create-repository --repository-name book-management
-   
-   # Build and push image
-   docker build -f docker/Dockerfile -t book-management .
-   docker tag book-management:latest <account-id>.dkr.ecr.<region>.amazonaws.com/book-management:latest
-   docker push <account-id>.dkr.ecr.<region>.amazonaws.com/book-management:latest
-   ```
+---
 
-2. **Create ECS Task Definition**
-   ```json
-   {
-     "family": "book-management-task",
-     "networkMode": "awsvpc",
-     "requiresCompatibilities": ["FARGATE"],
-     "cpu": "512",
-     "memory": "1024",
-     "executionRoleArn": "arn:aws:iam::<account>:role/ecsTaskExecutionRole",
-     "containerDefinitions": [
-       {
-         "name": "book-management",
-         "image": "<account-id>.dkr.ecr.<region>.amazonaws.com/book-management:latest",
-         "portMappings": [
-           {
-             "containerPort": 8000,
-             "protocol": "tcp"
-           }
-         ],
-         "environment": [
-           {
-             "name": "DATABASE_URL",
-             "value": "postgresql://user:password@rds-endpoint:5432/database"
-           }
-         ],
-         "logConfiguration": {
-           "logDriver": "awslogs",
-           "options": {
-             "awslogs-group": "/ecs/book-management",
-             "awslogs-region": "<region>",
-             "awslogs-stream-prefix": "ecs"
-           }
-         }
-       }
-     ]
-   }
-   ```
+## Docker-based Deployment
 
-### 3. Heroku Deployment
+### Prerequisites
 
-1. **Prepare Application**
-   ```bash
-   # Create Procfile
-   echo "web: uvicorn app.main:app --host 0.0.0.0 --port \$PORT" > Procfile
-   
-   # Create runtime.txt
-   echo "python-3.11.5" > runtime.txt
-   ```
+- Docker Engine 20.10+
+- Docker Compose 2.0+
 
-2. **Deploy to Heroku**
-   ```bash
-   # Install Heroku CLI and login
-   heroku create your-app-name
-   
-   # Add PostgreSQL addon
-   heroku addons:create heroku-postgresql:mini
-   
-   # Set environment variables
-   heroku config:set SECRET_KEY="your-secret-key"
-   heroku config:set OPENROUTER_API_KEY="your-api-key"
-   
-   # Deploy
-   git push heroku main
-   
-   # Run migrations
-   heroku run alembic upgrade head
-   ```
+### Verify Installation
 
-### 4. Digital Ocean App Platform
+```bash
+docker --version
+docker-compose --version
+```
 
-1. **Create App Specification**
-   ```yaml
-   # .do/app.yaml
-   name: book-management-system
-   services:
-   - name: api
-     source_dir: /
-     github:
-       repo: your-username/intelligent-book-management-system
-       branch: main
-     run_command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-     environment_slug: python
-     instance_count: 1
-     instance_size_slug: basic-xxs
-     envs:
-     - key: DATABASE_URL
-       value: ${db.DATABASE_URL}
-     - key: SECRET_KEY
-       value: your-secret-key
-     http_port: 8000
-   databases:
-   - name: db
-     engine: PG
-     version: "15"
-     size_slug: db-s-dev-database
-   ```
+### Project Structure
 
-2. **Deploy**
-   ```bash
-   doctl apps create --spec .do/app.yaml
-   ```
+```
+docker/
+├── Dockerfile              # Application container definition
+├── docker-compose.yml      # Development environment
+└── docker-compose.prod.yml # Production environment
+```
 
-## Environment Variables Reference
+### Development Deployment
 
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | Yes | - |
-| `SECRET_KEY` | JWT signing key (32+ chars) | Yes | - |
-| `OPENROUTER_API_KEY` | AI service API key | No | - |
-| `LLAMA_MODEL_PATH` | Local model path | No | microsoft/DialoGPT-medium |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT expiration | No | 30 |
-| `LOG_LEVEL` | Logging level | No | INFO |
-| `ALLOWED_HOSTS` | CORS allowed hosts | No | * |
+```bash
+cd docker
+docker-compose up -d
+```
+
+This starts:
+- **PostgreSQL 15** database on port 5432
+- **Redis 7** cache on port 6379
+- **FastAPI application** on port 8000
+
+### Production Deployment
+
+```bash
+cd docker
+
+# Create production environment file
+cp ../sample.env ../.env.prod
+# Edit .env.prod with production values
+
+# Deploy with production compose
+docker-compose -f docker-compose.prod.yml --env-file ../.env.prod up -d
+```
+
+Production setup includes:
+- Health checks for all services
+- Automatic restart policies
+- **Redis caching** with persistence (AWS ElastiCache compatible)
+- Memory limits for cache (256MB with LRU eviction)
+
+### Docker Commands Reference
+
+```bash
+# Start services
+docker-compose up -d
+
+# Stop services
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# View specific service logs
+docker-compose logs -f api
+
+# Rebuild containers
+docker-compose up -d --build
+
+# Remove all containers and volumes
+docker-compose down -v
+
+# Scale the API (multiple instances)
+docker-compose up -d --scale api=3
+
+# Execute command in container
+docker-compose exec api python -c "print('Hello')"
+
+# Run database migrations
+docker-compose exec api alembic upgrade head
+```
+
+### Dockerfile Overview
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc g++ postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### Docker Compose Configuration
+
+#### Development (`docker-compose.yml`)
+
+```yaml
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: bookmanager
+      POSTGRES_PASSWORD: bookpassword
+      POSTGRES_DB: book_management
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://bookmanager:bookpassword@db:5432/book_management
+      SECRET_KEY: your-secret-key
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
+```
+
+#### Production (`docker-compose.prod.yml`)
+
+Includes additional features:
+- Health checks for API, DB, and Redis
+- Automatic restart policies
+- **Redis caching** with persistence and LRU eviction
+- Memory limits for cache (256MB)
+
+---
+
+## Environment Configuration
+
+### Required Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
+| `SECRET_KEY` | JWT signing key (32+ chars) | `your-super-secret-key-here` |
+
+### Optional Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENROUTER_API_KEY` | AI service API key | - |
+| `OPENROUTER_MODEL` | AI model to use | `meta-llama/llama-3-8b-instruct:free` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT expiration | `30` |
+| `LOG_LEVEL` | Logging level | `INFO` |
+| `ALLOWED_HOSTS` | CORS allowed hosts | `*` |
+| `REDIS_URL` | Redis connection string | `redis://localhost:6379/0` |
+| `REDIS_PORT` | Redis port for Docker | `6379` |
+| `CACHE_ENABLED` | Enable/disable caching | `true` |
+
+### Sample Environment File
+
+```env
+# Database Configuration
+POSTGRES_USER=bookadmin
+POSTGRES_PASSWORD=BookPass@2024Secure
+POSTGRES_DB=intelligent_books_db
+
+# Security Configuration
+SECRET_KEY=f8a7b3c9d2e1f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+
+# AI Configuration (Optional - for Llama3 summaries)
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_MODEL=meta-llama/llama-3-8b-instruct:free
+
+# Redis Cache Configuration (AWS ElastiCache Compatible)
+REDIS_URL=redis://localhost:6379/0
+CACHE_ENABLED=true
+
+# Application Configuration
+LOG_LEVEL=INFO
+ALLOWED_HOSTS=*
+
+# Docker Ports
+API_PORT=8000
+DB_PORT=5432
+REDIS_PORT=6379
+```
+
+---
+
+## Database Setup
+
+### Using Docker (Automatic)
+
+When using Docker Compose, PostgreSQL is automatically configured.
+
+### Manual Setup (Local Development)
+
+```sql
+-- Connect to PostgreSQL
+psql -U postgres
+
+-- Create database and user
+CREATE DATABASE intelligent_books_db;
+CREATE USER bookadmin WITH PASSWORD 'BookPass@2024Secure';
+GRANT ALL PRIVILEGES ON DATABASE intelligent_books_db TO bookadmin;
+
+-- Exit
+\q
+```
+
+### Run Migrations
+
+```bash
+# Local development
+alembic upgrade head
+
+# Docker
+docker-compose exec api alembic upgrade head
+```
+
+### Seed Sample Data (Optional)
+
+```bash
+# Local
+python scripts/seed_data.py
+
+# Docker
+docker-compose exec api python scripts/seed_data.py
+```
+
+---
 
 ## Health Monitoring
 
-The application provides several health endpoints:
+### Health Endpoints
 
-- `GET /health` - Basic health check
-- `GET /` - Application info
-- `GET /docs` - API documentation
+| Endpoint | Description |
+|----------|-------------|
+| `GET /health` | Basic health check |
+| `GET /` | Application info |
+| `GET /docs` | API documentation |
 
-### Monitoring with External Services
+### Check Application Health
 
-#### AWS CloudWatch (for ECS/EC2)
 ```bash
-# Install CloudWatch agent
-# Configure custom metrics for response time, error rates
+# Using curl
+curl http://localhost:8000/health
+
+# Expected response
+{"status": "healthy", "version": "1.0.0"}
 ```
 
-#### Prometheus + Grafana
+### Docker Health Checks
+
+The production Docker Compose includes automatic health checks:
+
 ```yaml
-# Add to docker-compose.yml
-prometheus:
-  image: prom/prometheus
-  ports:
-    - "9090:9090"
-  volumes:
-    - ./prometheus.yml:/etc/prometheus/prometheus.yml
-
-grafana:
-  image: grafana/grafana
-  ports:
-    - "3000:3000"
-  environment:
-    - GF_SECURITY_ADMIN_PASSWORD=admin
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
 ```
 
-## SSL/TLS Configuration
+### Monitor Container Status
 
-### Using Nginx (Recommended)
+```bash
+# View container health
+docker-compose ps
 
-1. **Obtain SSL Certificate**
-   ```bash
-   # Using Let's Encrypt
-   sudo certbot --nginx -d yourdomain.com
-   ```
-
-2. **Nginx Configuration**
-   ```nginx
-   server {
-       listen 80;
-       server_name yourdomain.com;
-       return 301 https://$server_name$request_uri;
-   }
-   
-   server {
-       listen 443 ssl http2;
-       server_name yourdomain.com;
-       
-       ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-       ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-       
-       location / {
-           proxy_pass http://api:8000;
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-           proxy_set_header X-Forwarded-Proto $scheme;
-       }
-   }
-   ```
-
-## Performance Optimization
-
-### Database Optimization
-- Use connection pooling (built-in with SQLAlchemy)
-- Add database indexes for frequently queried fields
-- Consider read replicas for high traffic
-
-### Application Optimization
-- Enable gzip compression
-- Use Redis for caching (optional service in docker-compose)
-- Configure proper logging levels
-- Use async database operations (already implemented)
-
-### Container Optimization
-```dockerfile
-# Multi-stage build for smaller images
-FROM python:3.11-slim as builder
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --user -r requirements.txt
-
-FROM python:3.11-slim
-COPY --from=builder /root/.local /root/.local
-WORKDIR /app
-COPY . .
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# View resource usage
+docker stats
 ```
+
+---
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Database Connection Errors**
-   ```bash
-   # Check database URL format
-   # Verify database is accessible
-   docker exec -it postgres_container psql -U username -d database
-   ```
+#### 1. Database Connection Error
 
-2. **AI Service Issues**
-   ```bash
-   # Check API keys
-   # Verify OpenRouter connectivity
-   # Check model availability
-   ```
-
-3. **Authentication Problems**
-   ```bash
-   # Verify SECRET_KEY is set
-   # Check token expiration times
-   # Validate user credentials
-   ```
-
-### Logging
-
-Enable debug logging for troubleshooting:
-```bash
-export LOG_LEVEL=DEBUG
+```
+sqlalchemy.exc.OperationalError: connection refused
 ```
 
-View logs:
+**Solution:**
 ```bash
-# Docker Compose
+# Check if database is running
+docker-compose ps db
+
+# Check database logs
+docker-compose logs db
+
+# Verify DATABASE_URL format
+echo $DATABASE_URL
+```
+
+#### 2. Port Already in Use
+
+```
+Error: bind: address already in use
+```
+
+**Solution:**
+```bash
+# Find process using port
+lsof -i :8000
+
+# Kill the process or use different port
+docker-compose down
+docker-compose up -d
+```
+
+#### 3. Container Build Fails
+
+**Solution:**
+```bash
+# Clean rebuild
+docker-compose down -v
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+#### 4. Permission Denied
+
+**Solution:**
+```bash
+# Fix file permissions
+chmod +x run_tests.sh
+chmod -R 755 app/
+```
+
+### Viewing Logs
+
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
 docker-compose logs -f api
 
-# Heroku
-heroku logs --tail
-
-# AWS ECS
-aws logs describe-log-groups
+# Last 100 lines
+docker-compose logs --tail=100 api
 ```
 
-## Backup and Recovery
+### Debug Mode
 
-### Database Backups
+Enable debug logging:
+
 ```bash
-# Automated backup script
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M%S)
-docker exec postgres_container pg_dump -U username database > backup_$DATE.sql
+# Set environment variable
+export LOG_LEVEL=DEBUG
 
-# Upload to S3 (optional)
-aws s3 cp backup_$DATE.sql s3://your-backup-bucket/
+# Or in .env file
+LOG_LEVEL=DEBUG
+
+# Restart containers
+docker-compose restart api
 ```
 
-### Application State
-- User-generated content is in the database
-- AI model cache can be regenerated
-- Configuration is in environment variables
+---
+
+## Quick Reference
+
+### Start Application
+
+```bash
+# Docker (recommended)
+cd docker && docker-compose up -d
+
+# Local
+source venv/bin/activate && uvicorn app.main:app --reload
+```
+
+### Stop Application
+
+```bash
+# Docker
+docker-compose down
+
+# Local
+# Press Ctrl+C
+```
+
+### View API Documentation
+
+```
+http://localhost:8000/docs
+```
+
+### Run Tests
+
+```bash
+# Local
+python -m pytest tests/ -v
+
+# Docker
+docker-compose exec api python -m pytest tests/ -v
+```
+
+### Check Health
+
+```bash
+curl http://localhost:8000/health
+```
+
+---
 
 ## Security Checklist
 
-- [ ] Use strong SECRET_KEY (32+ characters)
-- [ ] Enable HTTPS in production
-- [ ] Configure proper CORS settings
-- [ ] Use environment variables for secrets
-- [ ] Regular security updates for dependencies
-- [ ] Database access restricted to application
-- [ ] Monitor for unusual activity
-- [ ] Implement rate limiting (optional)
+- [ ] Change `SECRET_KEY` from default value
+- [ ] Use strong database password
+- [ ] Set appropriate `ALLOWED_HOSTS` for production
+- [ ] Keep dependencies updated
+- [ ] Use HTTPS in production (configure reverse proxy)
+- [ ] Regularly backup database
 
-## Support and Maintenance
+---
 
-### Regular Maintenance Tasks
-- Monitor application logs
-- Update dependencies monthly
-- Database performance tuning
-- Security patches
-- Backup verification
+## Support
 
-### Support Channels
-- GitHub Issues for bugs
-- Documentation updates
-- Performance optimization requests
+For issues or questions:
+1. Check the troubleshooting section above
+2. Review application logs
+3. Open an issue in the GitHub repository

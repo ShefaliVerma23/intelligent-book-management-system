@@ -3,7 +3,7 @@ Review service for business logic
 """
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from app.models.reviews import Review
 from app.models.books import Book
@@ -18,14 +18,10 @@ class ReviewService:
 
     async def create_review(self, review_data: ReviewCreate) -> Review:
         """Create a new review"""
-        review = Review(**review_data.dict())
+        review = Review(**review_data.model_dump())
         self.db.add(review)
         await self.db.commit()
         await self.db.refresh(review)
-        
-        # Update book rating statistics
-        await self._update_book_stats(review.book_id)
-        
         return review
 
     async def create_review_for_book(self, book_id: int, review_data: dict) -> Optional[Review]:
@@ -42,17 +38,12 @@ class ReviewService:
             book_id=book_id,
             user_id=review_data.get('user_id', 1),  # Default user for demo
             rating=review_data['rating'],
-            title=review_data.get('title'),
-            content=review_data.get('content')
+            review_text=review_data.get('review_text')
         )
         
         self.db.add(review)
         await self.db.commit()
         await self.db.refresh(review)
-        
-        # Update book rating statistics
-        await self._update_book_stats(book_id)
-        
         return review
 
     async def get_reviews(
@@ -91,15 +82,11 @@ class ReviewService:
         if not review:
             return None
         
-        for field, value in review_data.dict(exclude_unset=True).items():
+        for field, value in review_data.model_dump(exclude_unset=True).items():
             setattr(review, field, value)
         
         await self.db.commit()
         await self.db.refresh(review)
-        
-        # Update book rating statistics
-        await self._update_book_stats(review.book_id)
-        
         return review
 
     async def delete_review(self, review_id: int) -> bool:
@@ -108,13 +95,8 @@ class ReviewService:
         if not review:
             return False
         
-        book_id = review.book_id
         await self.db.delete(review)
         await self.db.commit()
-        
-        # Update book rating statistics
-        await self._update_book_stats(book_id)
-        
         return True
 
     async def generate_review_summary(self, book_id: int) -> str:
@@ -127,8 +109,8 @@ class ReviewService:
         # Create prompt with review contents
         review_texts = []
         for review in reviews:
-            if review.content:
-                review_texts.append(f"Rating: {review.rating}/5 - {review.content}")
+            if review.review_text:
+                review_texts.append(f"Rating: {review.rating}/5 - {review.review_text}")
         
         if not review_texts:
             return f"This book has {len(reviews)} ratings with an average of {sum(r.rating for r in reviews)/len(reviews):.1f}/5 stars, but no written reviews."
@@ -140,25 +122,3 @@ class ReviewService:
     async def get_review_summary_for_book(self, book_id: int) -> str:
         """Get review summary for a book"""
         return await self.generate_review_summary(book_id)
-
-    async def _update_book_stats(self, book_id: int):
-        """Update book rating statistics"""
-        # Get all reviews for this book
-        query = select(Review).where(Review.book_id == book_id)
-        result = await self.db.execute(query)
-        reviews = result.scalars().all()
-        
-        # Get the book
-        book_query = select(Book).where(Book.id == book_id)
-        book_result = await self.db.execute(book_query)
-        book = book_result.scalar_one_or_none()
-        
-        if book:
-            if reviews:
-                book.total_reviews = len(reviews)
-                book.average_rating = sum(review.rating for review in reviews) / len(reviews)
-            else:
-                book.total_reviews = 0
-                book.average_rating = 0.0
-            
-            await self.db.commit()

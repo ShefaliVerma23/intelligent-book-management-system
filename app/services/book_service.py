@@ -3,8 +3,7 @@ Book service for business logic
 """
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, func, desc
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, or_, desc
 
 from app.models.books import Book
 from app.api.schemas import BookCreate, BookUpdate
@@ -18,7 +17,7 @@ class BookService:
 
     async def create_book(self, book_data: BookCreate) -> Book:
         """Create a new book"""
-        book = Book(**book_data.dict())
+        book = Book(**book_data.model_dump())
         self.db.add(book)
         await self.db.commit()
         await self.db.refresh(book)
@@ -46,7 +45,7 @@ class BookService:
                 or_(
                     Book.title.ilike(f"%{search}%"),
                     Book.author.ilike(f"%{search}%"),
-                    Book.description.ilike(f"%{search}%")
+                    Book.summary.ilike(f"%{search}%")
                 )
             )
         
@@ -66,7 +65,7 @@ class BookService:
         if not book:
             return None
         
-        for field, value in book_data.dict(exclude_unset=True).items():
+        for field, value in book_data.model_dump(exclude_unset=True).items():
             setattr(book, field, value)
         
         await self.db.commit()
@@ -84,31 +83,25 @@ class BookService:
         return True
 
     async def generate_summary(self, book_id: int) -> Optional[str]:
-        """Generate AI summary for a book"""
+        """Generate AI summary for a book using Llama"""
         book = await self.get_book_by_id(book_id)
         if not book:
             return None
         
         # Create prompt for summarization
-        prompt = f"Title: {book.title}\nAuthor: {book.author}\nDescription: {book.description or 'No description available'}"
+        prompt = f"Title: {book.title}\nAuthor: {book.author}\nSummary: {book.summary or 'No summary available'}"
         
-        summary = await self.llama_service.generate_summary(prompt)
-        
-        # Update book with generated summary
-        book.ai_summary = summary
-        book.summary_generated = True
-        await self.db.commit()
-        
-        return summary
+        generated_summary = await self.llama_service.generate_summary(prompt)
+        return generated_summary
 
     async def get_books_for_recommendations(self, limit: int = 50) -> List[Book]:
-        """Get books for recommendations (highest rated)"""
-        query = select(Book).where(Book.average_rating > 0).order_by(desc(Book.average_rating)).limit(limit)
+        """Get books for recommendations"""
+        query = select(Book).order_by(desc(Book.id)).limit(limit)
         result = await self.db.execute(query)
         return result.scalars().all()
 
     async def get_books_by_genre(self, genre: str, limit: int = 10) -> List[Book]:
         """Get books by genre for recommendations"""
-        query = select(Book).where(Book.genre.ilike(f"%{genre}%")).order_by(desc(Book.average_rating)).limit(limit)
+        query = select(Book).where(Book.genre.ilike(f"%{genre}%")).limit(limit)
         result = await self.db.execute(query)
         return result.scalars().all()

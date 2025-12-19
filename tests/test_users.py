@@ -2,16 +2,17 @@
 Tests for user-related API endpoints
 """
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from httpx import AsyncClient
 
 from app.models.users import User
 
 
 @pytest.mark.asyncio
 class TestUsers:
-    async def test_create_user(self, client: TestClient):
-        """Test creating a new user"""
+    """Test user CRUD operations"""
+
+    async def test_create_user(self, async_client: AsyncClient):
+        """Test creating a new user - POST /users"""
         user_data = {
             "username": "createduser",
             "email": "created@example.com",
@@ -19,7 +20,7 @@ class TestUsers:
             "full_name": "Created User"
         }
         
-        response = client.post("/api/v1/users/", json=user_data)
+        response = await async_client.post("/api/v1/users/", json=user_data)
         assert response.status_code == 200
         
         data = response.json()
@@ -27,18 +28,19 @@ class TestUsers:
         assert data["email"] == user_data["email"]
         assert data["full_name"] == user_data["full_name"]
 
-    async def test_get_users(self, client: TestClient, test_user: User):
-        """Test getting all users"""
-        response = client.get("/api/v1/users/")
+    async def test_get_users(self, async_client: AsyncClient, test_user: User):
+        """Test getting all users - GET /users"""
+        response = await async_client.get("/api/v1/users/")
         assert response.status_code == 200
         
         data = response.json()
+        assert isinstance(data, list)
         assert len(data) >= 1
         assert any(user["id"] == test_user.id for user in data)
 
-    async def test_get_user_by_id(self, client: TestClient, test_user: User):
-        """Test getting a specific user by ID"""
-        response = client.get(f"/api/v1/users/{test_user.id}")
+    async def test_get_user_by_id(self, async_client: AsyncClient, test_user: User):
+        """Test getting a specific user by ID - GET /users/<id>"""
+        response = await async_client.get(f"/api/v1/users/{test_user.id}")
         assert response.status_code == 200
         
         data = response.json()
@@ -46,19 +48,19 @@ class TestUsers:
         assert data["username"] == test_user.username
         assert data["email"] == test_user.email
 
-    async def test_get_nonexistent_user(self, client: TestClient):
+    async def test_get_nonexistent_user(self, async_client: AsyncClient):
         """Test getting a user that doesn't exist"""
-        response = client.get("/api/v1/users/99999")
+        response = await async_client.get("/api/v1/users/99999")
         assert response.status_code == 404
 
-    async def test_update_user(self, client: TestClient, test_user: User):
-        """Test updating a user"""
+    async def test_update_user(self, async_client: AsyncClient, test_user: User):
+        """Test updating a user - PUT /users/<id>"""
         update_data = {
             "full_name": "Updated Test User",
-            "bio": "Updated bio"
+            "bio": "Updated bio for testing"
         }
         
-        response = client.put(f"/api/v1/users/{test_user.id}", json=update_data)
+        response = await async_client.put(f"/api/v1/users/{test_user.id}", json=update_data)
         assert response.status_code == 200
         
         data = response.json()
@@ -66,16 +68,16 @@ class TestUsers:
         assert data["bio"] == update_data["bio"]
         assert data["username"] == test_user.username  # Unchanged
 
-    async def test_delete_user(self, client: TestClient, test_user: User):
-        """Test deleting a user"""
-        response = client.delete(f"/api/v1/users/{test_user.id}")
+    async def test_delete_user(self, async_client: AsyncClient, test_user: User):
+        """Test deleting a user - DELETE /users/<id>"""
+        response = await async_client.delete(f"/api/v1/users/{test_user.id}")
         assert response.status_code == 200
         
         # Verify user is deleted
-        response = client.get(f"/api/v1/users/{test_user.id}")
+        response = await async_client.get(f"/api/v1/users/{test_user.id}")
         assert response.status_code == 404
 
-    async def test_create_user_duplicate_email(self, client: TestClient, test_user: User):
+    async def test_create_user_duplicate_email(self, async_client: AsyncClient, test_user: User):
         """Test creating user with duplicate email"""
         user_data = {
             "username": "anotheruser2",
@@ -84,10 +86,10 @@ class TestUsers:
             "full_name": "Another User"
         }
         
-        response = client.post("/api/v1/users/", json=user_data)
+        response = await async_client.post("/api/v1/users/", json=user_data)
         assert response.status_code == 400
 
-    async def test_create_user_duplicate_username(self, client: TestClient, test_user: User):
+    async def test_create_user_duplicate_username(self, async_client: AsyncClient, test_user: User):
         """Test creating user with duplicate username"""
         user_data = {
             "username": test_user.username,  # Duplicate username
@@ -96,13 +98,25 @@ class TestUsers:
             "full_name": "Another User"
         }
         
-        response = client.post("/api/v1/users/", json=user_data)
+        response = await async_client.post("/api/v1/users/", json=user_data)
         assert response.status_code == 400
 
-    async def test_user_pagination(self, client: TestClient):
+    async def test_user_pagination(self, async_client: AsyncClient):
         """Test user pagination"""
-        response = client.get("/api/v1/users/?skip=0&limit=10")
+        response = await async_client.get("/api/v1/users/?skip=0&limit=10")
         assert response.status_code == 200
         
         data = response.json()
         assert len(data) <= 10
+
+    async def test_update_user_preferences(self, async_client: AsyncClient, test_user: User):
+        """Test updating user genre preferences"""
+        update_data = {
+            "preferred_genres": '["Science Fiction", "Fantasy", "Mystery"]'
+        }
+        
+        response = await async_client.put(f"/api/v1/users/{test_user.id}", json=update_data)
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert "Science Fiction" in data["preferred_genres"]

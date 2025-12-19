@@ -142,8 +142,6 @@ async def get_book_summary(
         "book_id": book_id,
         "title": book.title,
         "author": book.author,
-        "ai_summary": book.ai_summary,
-        "average_rating": book.average_rating,
-        "total_reviews": book.total_reviews,
+        "summary": book.summary,
         "review_summary": review_summary
     }

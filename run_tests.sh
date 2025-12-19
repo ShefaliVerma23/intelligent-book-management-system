@@ -1,60 +1,96 @@
 #!/bin/bash
+#
+# Test Runner for Intelligent Book Management System
+# Usage: ./run_tests.sh [option]
+#
+# Options:
+#   all      - Run all pytest tests (default)
+#   books    - Run only book tests
+#   reviews  - Run only review tests
+#   recs     - Run only recommendation tests
+#   api      - Run manual API tests (requires server running)
+#   coverage - Run tests with coverage report
+#   verbose  - Run all tests with verbose output
+#
 
-# Test runner script for Intelligent Book Management System
+set -e
 
-echo "Starting test suite for Intelligent Book Management System..."
-echo "=============================================="
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# Check if virtual environment is activated
-if [[ "$VIRTUAL_ENV" == "" ]]; then
-    echo "Warning: Virtual environment not detected. Consider activating it:"
-    echo "source venv/bin/activate"
-    echo ""
+echo -e "${BLUE}============================================${NC}"
+echo -e "${BLUE}  Intelligent Book Management System Tests${NC}"
+echo -e "${BLUE}============================================${NC}"
+echo ""
+
+# Activate virtual environment if it exists
+if [ -d "venv" ]; then
+    source venv/bin/activate
+    echo -e "${GREEN}✓ Virtual environment activated${NC}"
 fi
 
-# Install test dependencies if not already installed
-echo "Installing test dependencies..."
-pip install pytest pytest-asyncio aiosqlite --quiet
-
-# Set test environment
-export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-
-# Create test database (SQLite for testing)
-export DATABASE_URL="sqlite+aiosqlite:///./test.db"
-
-# Run tests with different options based on arguments
-if [[ "$1" == "coverage" ]]; then
-    echo "Running tests with coverage..."
-    pip install pytest-cov --quiet
-    pytest --cov=app --cov-report=html --cov-report=term-missing -v
-    echo ""
-    echo "Coverage report generated in htmlcov/index.html"
-elif [[ "$1" == "verbose" ]]; then
-    echo "Running tests in verbose mode..."
-    pytest -v -s
-elif [[ "$1" == "fast" ]]; then
-    echo "Running fast tests (excluding slow integration tests)..."
-    pytest -v -m "not slow"
-elif [[ "$1" == "integration" ]]; then
-    echo "Running integration tests only..."
-    pytest -v tests/test_*.py
-else
-    echo "Running all tests..."
-    pytest -v
+# Check if pytest is installed
+if ! command -v pytest &> /dev/null; then
+    echo -e "${YELLOW}Installing pytest...${NC}"
+    pip install pytest pytest-asyncio aiosqlite httpx
 fi
 
-# Cleanup test database
-if [[ -f "./test.db" ]]; then
-    rm ./test.db
-    echo "Cleaned up test database"
-fi
+case "$1" in
+    "books")
+        echo -e "\n${YELLOW}Running Book Tests...${NC}\n"
+        python -m pytest tests/test_books.py -v
+        ;;
+    "reviews")
+        echo -e "\n${YELLOW}Running Review Tests...${NC}\n"
+        python -m pytest tests/test_reviews.py -v
+        ;;
+    "recs")
+        echo -e "\n${YELLOW}Running Recommendation Tests...${NC}\n"
+        python -m pytest tests/test_recommendations.py -v
+        ;;
+    "auth")
+        echo -e "\n${YELLOW}Running Auth Tests...${NC}\n"
+        python -m pytest tests/test_auth.py -v
+        ;;
+    "api")
+        echo -e "\n${YELLOW}Running Manual API Tests...${NC}"
+        echo -e "${YELLOW}Make sure server is running: uvicorn app.main:app --reload${NC}\n"
+        python scripts/test_api.py
+        ;;
+    "coverage")
+        echo -e "\n${YELLOW}Running Tests with Coverage...${NC}\n"
+        pip install pytest-cov -q
+        python -m pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=html
+        echo -e "\n${GREEN}Coverage report generated: htmlcov/index.html${NC}"
+        ;;
+    "verbose")
+        echo -e "\n${YELLOW}Running All Tests (Verbose)...${NC}\n"
+        python -m pytest tests/ -v -s
+        ;;
+    "all"|"")
+        echo -e "\n${YELLOW}Running All Tests...${NC}\n"
+        python -m pytest tests/ -v
+        ;;
+    *)
+        echo "Usage: ./run_tests.sh [option]"
+        echo ""
+        echo "Options:"
+        echo "  all      - Run all pytest tests (default)"
+        echo "  books    - Run only book tests"
+        echo "  reviews  - Run only review tests"
+        echo "  recs     - Run only recommendation tests"
+        echo "  auth     - Run only auth tests"
+        echo "  api      - Run manual API tests (requires server running)"
+        echo "  coverage - Run tests with coverage report"
+        echo "  verbose  - Run all tests with verbose output"
+        exit 1
+        ;;
+esac
 
 echo ""
-echo "Test suite completed!"
-echo ""
-echo "Usage:"
-echo "  ./run_tests.sh           - Run all tests"
-echo "  ./run_tests.sh coverage  - Run with coverage report"
-echo "  ./run_tests.sh verbose   - Run with detailed output"
-echo "  ./run_tests.sh fast      - Run fast tests only"
-echo "  ./run_tests.sh integration - Run integration tests only"
+echo -e "${GREEN}============================================${NC}"
+echo -e "${GREEN}  Tests Completed!${NC}"
+echo -e "${GREEN}============================================${NC}"

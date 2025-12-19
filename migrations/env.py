@@ -2,7 +2,7 @@
 Alembic environment configuration for async database operations
 """
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config
+from sqlalchemy import engine_from_config, create_engine
 from sqlalchemy import pool
 from alembic import context
 import asyncio
@@ -11,9 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.models.base import Base
 from app.config.settings import settings
 
+# Import all models to ensure they're registered with Base.metadata
+from app.models.books import Book
+from app.models.users import User
+from app.models.reviews import Review
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# Override sqlalchemy.url with value from settings
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -61,34 +69,40 @@ def do_run_migrations(connection):
         context.run_migrations()
 
 
-async def run_migrations_online() -> None:
+def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
     In this scenario we need to create an Engine
     and associate a connection with the context.
 
     """
-    # Use the async database URL
-    database_url = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+    # Use sync connection for Alembic (simpler and more reliable)
+    database_url = settings.DATABASE_URL
     
-    configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = database_url
+    # Remove channel_binding parameter if present (not supported by psycopg2)
+    if "channel_binding" in database_url:
+        # Remove channel_binding parameter from URL
+        import re
+        database_url = re.sub(r'[&?]channel_binding=[^&]*', '', database_url)
     
-    connectable = AsyncEngine(
-        engine_from_config(
-            configuration,
-            prefix="sqlalchemy.",
-            poolclass=pool.NullPool,
-        )
+    connectable = create_engine(
+        database_url,
+        poolclass=pool.NullPool,
     )
 
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata
+        )
 
-    await connectable.dispose()
+        with context.begin_transaction():
+            context.run_migrations()
+
+    connectable.dispose()
 
 
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    asyncio.run(run_migrations_online())
+    run_migrations_online()

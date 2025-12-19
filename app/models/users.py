@@ -1,12 +1,10 @@
 """
 User model for the database
 """
+import bcrypt
 from sqlalchemy import Column, String, Boolean, Text
 from sqlalchemy.orm import relationship
-from passlib.context import CryptContext
 from .base import BaseModel
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class User(BaseModel):
@@ -36,13 +34,20 @@ class User(BaseModel):
         return f"<User(username='{self.username}', email='{self.email}')>"
     
     def verify_password(self, password: str) -> bool:
-        """Verify user password"""
-        return pwd_context.verify(password, self.hashed_password)
+        """Verify user password using bcrypt"""
+        try:
+            return bcrypt.checkpw(
+                password.encode('utf-8'), 
+                self.hashed_password.encode('utf-8')
+            )
+        except Exception:
+            return False
     
     @staticmethod
     def get_password_hash(password: str) -> str:
-        """Hash a password"""
-        return pwd_context.hash(password)
+        """Hash a password using bcrypt"""
+        salt = bcrypt.gensalt()
+        return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
     
     def set_password(self, password: str):
         """Set user password"""

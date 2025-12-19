@@ -1,32 +1,38 @@
 """
 Review model for the database
 """
-from sqlalchemy import Column, String, Text, Integer, ForeignKey, Float
+from sqlalchemy import Column, Text, Integer, ForeignKey, Float, CheckConstraint
 from sqlalchemy.orm import relationship
 from .base import BaseModel
 
 
 class Review(BaseModel):
+    """
+    Reviews table with fields:
+    - id: Primary key (inherited from BaseModel)
+    - book_id: Foreign key referencing books table
+    - user_id: Foreign key referencing users table
+    - review_text: The review content
+    - rating: Numeric rating (1-5)
+    """
     __tablename__ = "reviews"
     
     # Foreign keys
-    book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    book_id = Column(Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Review content
-    rating = Column(Float, nullable=False)  # 1.0 to 5.0
-    title = Column(String(255))
-    content = Column(Text)
+    review_text = Column(Text)
+    rating = Column(Float, nullable=False)
     
-    # Review metadata
-    helpful_votes = Column(Integer, default=0)
-    
-    # AI-generated review summary (for aggregating multiple reviews)
-    ai_summary = Column(Text)
+    # Add check constraint for rating range
+    __table_args__ = (
+        CheckConstraint('rating >= 1 AND rating <= 5', name='valid_rating'),
+    )
     
     # Relationships
     book = relationship("Book", back_populates="reviews")
     user = relationship("User", back_populates="reviews")
     
     def __repr__(self):
-        return f"<Review(book_id={self.book_id}, user_id={self.user_id}, rating={self.rating})>"
+        return f"<Review(id={self.id}, book_id={self.book_id}, user_id={self.user_id}, rating={self.rating})>"
