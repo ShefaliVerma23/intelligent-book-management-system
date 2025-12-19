@@ -1,0 +1,28 @@
+# Virtual Environment
+venv/
+
+# Environment files (contains secrets)
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Testing
+.pytest_cache/
+
+# Database files
+*.db
+test.db
+demo.db
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
