@@ -1,50 +1,70 @@
-# FastAPI and web framework dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
-pydantic-settings==2.1.0
+# =============================================================================
+# Intelligent Book Management System - Core Dependencies
+# =============================================================================
+# 
+# This file contains ONLY the dependencies needed to run the application.
+# Heavy ML dependencies (torch, transformers) are OPTIONAL and in a separate file.
+#
+# Installation:
+#   pip install -r requirements.txt
+#
+# For local AI model support (optional, adds ~2GB of dependencies):
+#   pip install -r requirements-ml.txt
+#
+# =============================================================================
 
-# Database dependencies
-sqlalchemy[asyncio]==2.0.23
-alembic==1.13.0
-asyncpg==0.29.0
-psycopg2-binary==2.9.9
+# -----------------------------------------------------------------------------
+# FastAPI and Web Framework
+# -----------------------------------------------------------------------------
+fastapi>=0.109.0,<0.120.0
+uvicorn[standard]>=0.27.0,<0.35.0
+pydantic>=2.5.0,<3.0.0
+pydantic-settings>=2.1.0,<3.0.0
 
-# AI and ML dependencies
-transformers==4.36.0
-torch==2.1.0
-sentence-transformers==2.2.2
-numpy==1.24.3
-scikit-learn==1.3.0
+# -----------------------------------------------------------------------------
+# Database
+# -----------------------------------------------------------------------------
+SQLAlchemy[asyncio]>=2.0.23,<2.1.0
+alembic>=1.13.0,<2.0.0
+asyncpg>=0.29.0,<0.31.0
+greenlet>=3.0.0,<4.0.0
 
-# HTTP client for API requests
-httpx==0.25.2
-requests==2.31.0
+# -----------------------------------------------------------------------------
+# HTTP Client (for OpenRouter API)
+# -----------------------------------------------------------------------------
+httpx>=0.25.0,<1.0.0
 
-# Redis caching (AWS ElastiCache compatible)
-redis==5.0.1
+# -----------------------------------------------------------------------------
+# Caching
+# -----------------------------------------------------------------------------
+redis>=5.0.0,<6.0.0
 
-# Authentication and security
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
+# -----------------------------------------------------------------------------
+# Authentication
+# -----------------------------------------------------------------------------
+python-jose[cryptography]>=3.3.0,<4.0.0
+passlib[bcrypt]>=1.7.4,<2.0.0
+bcrypt>=4.0.0,<5.0.0
+python-multipart>=0.0.6,<1.0.0
 
-# Environment and configuration
-python-dotenv==1.0.0
+# -----------------------------------------------------------------------------
+# Configuration
+# -----------------------------------------------------------------------------
+python-dotenv>=1.0.0,<2.0.0
 
-# Date and time handling
-python-dateutil==2.8.2
+# -----------------------------------------------------------------------------
+# Utilities
+# -----------------------------------------------------------------------------
+python-dateutil>=2.8.2,<3.0.0
 
-# Logging and monitoring
-loguru==0.7.2
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+loguru>=0.7.0,<1.0.0
 
-# Testing dependencies
-pytest==7.4.3
-pytest-asyncio==0.21.1
-aiosqlite==0.19.0
-
-# Development dependencies
-black==23.11.0
-isort==5.12.0
-flake8==6.1.0
-mypy==1.7.1
+# -----------------------------------------------------------------------------
+# Testing (dev only, can be installed separately)
+# -----------------------------------------------------------------------------
+pytest>=7.4.0,<9.0.0
+pytest-asyncio>=0.21.0,<1.0.0
+aiosqlite>=0.19.0,<1.0.0

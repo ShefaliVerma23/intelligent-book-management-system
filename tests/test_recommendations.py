@@ -1,8 +1,21 @@
 """
 Tests for recommendation and AI summary endpoints
+
+Tests cover:
+- Popular book recommendations
+- Similar book recommendations
+- AI summary generation (requires authentication)
+- Book summary endpoints
+- Review summary endpoints
+
+Note:
+- POST /generate-summary requires authentication
+- POST /books/{id}/generate-summary requires admin
+- Creating books requires admin authentication
 """
 import pytest
 from httpx import AsyncClient
+from typing import Dict
 
 from app.models.books import Book
 from app.models.users import User
@@ -58,17 +71,34 @@ class TestRecommendations:
 
 @pytest.mark.asyncio
 class TestGenerateSummary:
-    """Test the POST /generate-summary endpoint"""
+    """Test the POST /generate-summary endpoint (requires authentication)"""
 
-    async def test_generate_summary(self, async_client: AsyncClient):
-        """Test generating summary for content - POST /generate-summary"""
+    async def test_generate_summary_requires_auth(self, async_client: AsyncClient):
+        """Test that generate-summary requires authentication"""
+        request_data = {
+            "content": "This is a test book about a young wizard."
+        }
+        
+        response = await async_client.post("/api/v1/generate-summary", json=request_data)
+        assert response.status_code in [401, 403]
+
+    async def test_generate_summary(
+        self,
+        async_client: AsyncClient,
+        auth_headers: Dict[str, str]
+    ):
+        """Test generating summary for content - POST /generate-summary (authenticated)"""
         request_data = {
             "content": "This is a test book about a young wizard who discovers magical powers. "
                        "He attends a school for wizards and makes friends along the way. "
                        "Together they face challenges and defeat evil forces."
         }
         
-        response = await async_client.post("/api/v1/generate-summary", json=request_data)
+        response = await async_client.post(
+            "/api/v1/generate-summary",
+            json=request_data,
+            headers=auth_headers
+        )
         assert response.status_code == 200
         
         data = response.json()
@@ -78,32 +108,58 @@ class TestGenerateSummary:
         assert data["content_length"] == len(request_data["content"])
         assert len(data["summary"]) > 0
 
-    async def test_generate_summary_empty_content(self, async_client: AsyncClient):
+    async def test_generate_summary_empty_content(
+        self,
+        async_client: AsyncClient,
+        auth_headers: Dict[str, str]
+    ):
         """Test generating summary with empty content"""
         request_data = {
             "content": ""
         }
         
-        response = await async_client.post("/api/v1/generate-summary", json=request_data)
-        assert response.status_code == 400
+        response = await async_client.post(
+            "/api/v1/generate-summary",
+            json=request_data,
+            headers=auth_headers
+        )
+        # 422 is FastAPI's standard response for validation errors
+        assert response.status_code == 422
 
-    async def test_generate_summary_whitespace_content(self, async_client: AsyncClient):
+    async def test_generate_summary_whitespace_content(
+        self,
+        async_client: AsyncClient,
+        auth_headers: Dict[str, str]
+    ):
         """Test generating summary with whitespace-only content"""
         request_data = {
             "content": "   "
         }
         
-        response = await async_client.post("/api/v1/generate-summary", json=request_data)
-        assert response.status_code == 400
+        response = await async_client.post(
+            "/api/v1/generate-summary",
+            json=request_data,
+            headers=auth_headers
+        )
+        # 422 is FastAPI's standard response for validation errors
+        assert response.status_code == 422
 
-    async def test_generate_summary_long_content(self, async_client: AsyncClient):
+    async def test_generate_summary_long_content(
+        self,
+        async_client: AsyncClient,
+        auth_headers: Dict[str, str]
+    ):
         """Test generating summary for long content"""
         long_content = "This is a test sentence. " * 100
         request_data = {
             "content": long_content
         }
         
-        response = await async_client.post("/api/v1/generate-summary", json=request_data)
+        response = await async_client.post(
+            "/api/v1/generate-summary",
+            json=request_data,
+            headers=auth_headers
+        )
         assert response.status_code == 200
         
         data = response.json()
@@ -116,9 +172,30 @@ class TestGenerateSummary:
 class TestBookSummaryGeneration:
     """Test AI summary generation for books"""
 
-    async def test_generate_book_summary(self, async_client: AsyncClient, test_book: Book):
-        """Test generating AI summary for existing book"""
-        response = await async_client.post(f"/api/v1/books/{test_book.id}/generate-summary")
+    async def test_generate_book_summary_requires_admin(
+        self,
+        async_client: AsyncClient,
+        test_book: Book,
+        auth_headers: Dict[str, str]
+    ):
+        """Test that generating book summary requires admin privileges"""
+        response = await async_client.post(
+            f"/api/v1/books/{test_book.id}/generate-summary",
+            headers=auth_headers  # Regular user, not admin
+        )
+        assert response.status_code == 403
+
+    async def test_generate_book_summary(
+        self,
+        async_client: AsyncClient,
+        test_book: Book,
+        admin_auth_headers: Dict[str, str]
+    ):
+        """Test generating AI summary for existing book (admin)"""
+        response = await async_client.post(
+            f"/api/v1/books/{test_book.id}/generate-summary",
+            headers=admin_auth_headers
+        )
         assert response.status_code == 200
         
         data = response.json()
@@ -126,13 +203,20 @@ class TestBookSummaryGeneration:
         assert "summary" in data
         assert len(data["summary"]) > 0
 
-    async def test_generate_summary_nonexistent_book(self, async_client: AsyncClient):
+    async def test_generate_summary_nonexistent_book(
+        self,
+        async_client: AsyncClient,
+        admin_auth_headers: Dict[str, str]
+    ):
         """Test generating summary for nonexistent book"""
-        response = await async_client.post("/api/v1/books/99999/generate-summary")
+        response = await async_client.post(
+            "/api/v1/books/99999/generate-summary",
+            headers=admin_auth_headers
+        )
         assert response.status_code == 404
 
     async def test_get_book_summary_endpoint(self, async_client: AsyncClient, test_book: Book):
-        """Test getting book summary with review aggregation"""
+        """Test getting book summary with review aggregation (public endpoint)"""
         response = await async_client.get(f"/api/v1/books/{test_book.id}/summary")
         assert response.status_code == 200
         
@@ -157,19 +241,28 @@ class TestReviewSummary:
         assert data["book_id"] == test_review.book_id
         assert "summary" in data
 
-    async def test_review_summary_no_reviews(self, async_client: AsyncClient, test_book: Book):
+    async def test_review_summary_no_reviews(
+        self,
+        async_client: AsyncClient,
+        admin_auth_headers: Dict[str, str]
+    ):
         """Test review summary for book with no reviews"""
-        # Create a new book with no reviews
-        response = await async_client.post("/api/v1/books/", json={
-            "title": "Book Without Reviews",
-            "author": "Unknown Author",
-            "genre": "Mystery"
-        })
+        # Create a new book with no reviews (requires admin)
+        response = await async_client.post(
+            "/api/v1/books/",
+            json={
+                "title": "Book Without Reviews",
+                "author": "Unknown Author",
+                "genre": "Mystery"
+            },
+            headers=admin_auth_headers
+        )
+        assert response.status_code == 201
         new_book_id = response.json()["id"]
         
+        # Get review summary for book with no reviews
         response = await async_client.get(f"/api/v1/reviews/book/{new_book_id}/summary")
         assert response.status_code == 200
         
         data = response.json()
         assert "summary" in data
-

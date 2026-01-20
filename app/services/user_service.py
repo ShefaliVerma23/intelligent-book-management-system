@@ -1,20 +1,30 @@
 """
 User service for business logic
 """
-from typing import List, Optional
+from typing import List, Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.users import User
-from app.api.schemas import UserCreate, UserUpdate
+from app.api.schemas import UserCreate, UserUpdate, AdminUserCreate
 
 
 class UserService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create_user(self, user_data: UserCreate) -> User:
-        """Create a new user"""
+    async def create_user(
+        self, 
+        user_data: Union[UserCreate, AdminUserCreate],
+        is_admin_creation: bool = False
+    ) -> User:
+        """Create a new user.
+        
+        Args:
+            user_data: User creation data (UserCreate or AdminUserCreate)
+            is_admin_creation: If True and user_data is AdminUserCreate,
+                               apply is_active and is_admin fields
+        """
         user = User(
             username=user_data.username,
             email=user_data.email,
@@ -23,6 +33,11 @@ class UserService:
             preferred_genres=user_data.preferred_genres
         )
         user.set_password(user_data.password)
+        
+        # Set admin fields if this is an admin creation with AdminUserCreate schema
+        if is_admin_creation and isinstance(user_data, AdminUserCreate):
+            user.is_active = user_data.is_active
+            user.is_admin = user_data.is_admin
         
         self.db.add(user)
         await self.db.commit()
@@ -59,7 +74,7 @@ class UserService:
         if not user:
             return None
         
-        for field, value in user_data.dict(exclude_unset=True).items():
+        for field, value in user_data.model_dump(exclude_unset=True).items():
             setattr(user, field, value)
         
         await self.db.commit()

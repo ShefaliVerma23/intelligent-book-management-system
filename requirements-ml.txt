@@ -1,0 +1,42 @@
+# =============================================================================
+# Optional Machine Learning Dependencies
+# =============================================================================
+#
+# These dependencies are ONLY needed if you want to run LOCAL AI models
+# instead of using the OpenRouter API.
+#
+# WARNING: These add ~2GB of dependencies and require significant RAM/CPU.
+# For most deployments, use OpenRouter API instead (set OPENROUTER_API_KEY).
+#
+# Installation:
+#   pip install -r requirements.txt
+#   pip install -r requirements-ml.txt
+#
+# =============================================================================
+
+# Core requirements (will be skipped if already installed)
+-r requirements.txt
+
+# -----------------------------------------------------------------------------
+# PyTorch - Deep Learning Framework
+# -----------------------------------------------------------------------------
+# Note: For GPU support, install from pytorch.org with your CUDA version
+torch>=2.1.0,<3.0.0
+
+# -----------------------------------------------------------------------------
+# Hugging Face Transformers
+# -----------------------------------------------------------------------------
+transformers>=4.36.0,<5.0.0
+sentence-transformers>=2.2.2,<3.0.0
+
+# -----------------------------------------------------------------------------
+# Scientific Computing
+# -----------------------------------------------------------------------------
+numpy>=1.24.0,<2.0.0
+scikit-learn>=1.3.0,<2.0.0
+
+# -----------------------------------------------------------------------------
+# NLP Utilities
+# -----------------------------------------------------------------------------
+nltk>=3.8.0,<4.0.0
+

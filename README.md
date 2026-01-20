@@ -64,10 +64,10 @@ cp sample.env .env
 # macOS: brew services start postgresql && brew services start redis
 # Ubuntu: sudo systemctl start postgresql redis
 
-# 5. Create database
+# 5. Create database (replace with your own secure credentials)
 psql -U postgres -c "CREATE DATABASE intelligent_books_db;"
-psql -U postgres -c "CREATE USER bookadmin WITH PASSWORD 'BookPass@2024Secure';"
-psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE intelligent_books_db TO bookadmin;"
+psql -U postgres -c "CREATE USER your_db_user WITH PASSWORD 'your_secure_password';"
+psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE intelligent_books_db TO your_db_user;"
 
 # 6. Run migrations
 alembic upgrade head
@@ -295,11 +295,11 @@ intelligent-book-management-system/
    # Edit .env with your configuration
    ```
 
-5. **Set up PostgreSQL database**
+5. **Set up PostgreSQL database** (use your own secure credentials)
    ```sql
    CREATE DATABASE intelligent_books_db;
-   CREATE USER bookadmin WITH PASSWORD 'BookPass@2024Secure';
-   GRANT ALL PRIVILEGES ON DATABASE intelligent_books_db TO bookadmin;
+   CREATE USER your_db_user WITH PASSWORD 'your_secure_password';
+   GRANT ALL PRIVILEGES ON DATABASE intelligent_books_db TO your_db_user;
    ```
 
 6. **Run database migrations**
@@ -361,16 +361,21 @@ cp sample.env .env
 **Key Environment Variables:**
 
 ```env
-# Database Configuration
-POSTGRES_USER=bookadmin
-POSTGRES_PASSWORD=BookPass@2024Secure
+# Database Configuration (REQUIRED - use your own secure values)
+POSTGRES_USER=your_db_username
+POSTGRES_PASSWORD=your_secure_db_password
 POSTGRES_DB=intelligent_books_db
 POSTGRES_HOST=db              # Use 'localhost' for local dev, 'db' for Docker
 POSTGRES_PORT=5432
 
-# Security
-SECRET_KEY=f8a7b3c9d2e1f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8
+# Security (REQUIRED - generate your own secret key)
+# Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+SECRET_KEY=your_generated_secret_key_here
 ACCESS_TOKEN_EXPIRE_MINUTES=60
+
+# Redis Cache (REQUIRED when CACHE_ENABLED=true)
+REDIS_URL=redis://localhost:6379/0
+CACHE_ENABLED=true
 
 # AI Configuration (Optional - for Llama3 summaries)
 OPENROUTER_API_KEY=your-openrouter-api-key
@@ -383,7 +388,7 @@ DB_PORT=5432
 
 **For Local Development (without Docker):**
 ```env
-DATABASE_URL=postgresql://bookadmin:BookPass@2024Secure@localhost:5432/intelligent_books_db
+DATABASE_URL=postgresql://your_db_username:your_secure_db_password@localhost:5432/intelligent_books_db
 ```
 
 ## AI Integration Options
@@ -558,35 +563,37 @@ Test coverage includes:
 ## Database Schema
 
 ### Books Table
-- `id`: Primary key
-- `title`: Book title
-- `author`: Book author
-- `isbn`: ISBN number
-- `genre`: Book genre
-- `publication_year`: Publication year
-- `description`: Book description
-- `ai_summary`: AI-generated summary
-- `average_rating`: Calculated average rating
-- `total_reviews`: Number of reviews
+- `id`: Primary key (auto-increment)
+- `title`: Book title (required, indexed)
+- `author`: Book author (required, indexed)
+- `genre`: Book genre/category (indexed)
+- `year_published`: Year the book was published
+- `summary`: Brief description/summary of the book
+- `created_at`: Timestamp of creation
+- `updated_at`: Timestamp of last update
 
 ### Users Table
-- `id`: Primary key
-- `username`: Unique username
-- `email`: Unique email
-- `hashed_password`: Encrypted password
+- `id`: Primary key (auto-increment)
+- `username`: Unique username (required, indexed)
+- `email`: Unique email (required, indexed)
+- `hashed_password`: bcrypt-encrypted password (required)
 - `full_name`: User's full name
-- `preferred_genres`: JSON array of preferences
-- `is_active`: Account status
-- `is_admin`: Admin privileges
+- `bio`: User biography
+- `preferred_genres`: Comma-separated list of preferred genres
+- `reading_history`: JSON string of reading patterns
+- `is_active`: Account status (default: true)
+- `is_admin`: Admin privileges (default: false)
+- `created_at`: Timestamp of creation
+- `updated_at`: Timestamp of last update
 
 ### Reviews Table
-- `id`: Primary key
-- `book_id`: Foreign key to books
-- `user_id`: Foreign key to users
-- `rating`: Rating (1.0-5.0)
-- `title`: Review title
-- `content`: Review text
-- `helpful_votes`: Community helpfulness votes
+- `id`: Primary key (auto-increment)
+- `book_id`: Foreign key to books (required, indexed, CASCADE delete)
+- `user_id`: Foreign key to users (required, indexed, CASCADE delete)
+- `rating`: Rating 1.0-5.0 (required, with check constraint)
+- `review_text`: Review content
+- `created_at`: Timestamp of creation
+- `updated_at`: Timestamp of last update
 
 ## Deployment
 

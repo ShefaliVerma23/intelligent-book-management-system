@@ -3,11 +3,12 @@ version: '3.8'
 # =============================================================================
 # Docker Compose Production - Intelligent Book Management System
 # =============================================================================
-# Usage:
-#   docker-compose -f docker-compose.prod.yml up -d
+# REQUIRED: Copy ../.env.example to ../.env.prod and configure before running.
 #
-# With custom .env file:
+# Usage:
 #   docker-compose -f docker-compose.prod.yml --env-file ../.env.prod up -d
+#
+# Note: All sensitive values (passwords, secrets) MUST be set via environment.
 # =============================================================================
 
 services:
@@ -18,8 +19,8 @@ services:
     image: postgres:15
     container_name: intelligent_books_db_prod
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-bookadmin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-BookPass@2024Secure}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-intelligent_books_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -27,7 +28,7 @@ services:
       - book-network
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookadmin} -d ${POSTGRES_DB:-intelligent_books_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-intelligent_books_db}"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -44,11 +45,11 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     environment:
-      # Database
-      DATABASE_URL: postgresql://${POSTGRES_USER:-bookadmin}:${POSTGRES_PASSWORD:-BookPass@2024Secure}@db:5432/${POSTGRES_DB:-intelligent_books_db}
+      # Database - constructed from env vars
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-intelligent_books_db}
       
-      # Security
-      SECRET_KEY: ${SECRET_KEY:-f8a7b3c9d2e1f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8}
+      # Security - REQUIRED
+      SECRET_KEY: ${SECRET_KEY}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
       
       # AI Configuration
@@ -56,14 +57,23 @@ services:
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-meta-llama/llama-3-8b-instruct:free}
       LLAMA_MODEL_PATH: ${LLAMA_MODEL_PATH:-microsoft/DialoGPT-medium}
       LLAMA_MAX_LENGTH: ${LLAMA_MAX_LENGTH:-512}
-      LLAMA_TEMPERATURE: ${LLAMA_TEMPERATURE:-0.7}
+      
+      # LLM Generation Parameters (must match settings.py names)
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
+      LLM_TOP_P: ${LLM_TOP_P:-0.9}
+      LLM_MAX_TOKENS_SUMMARY: ${LLM_MAX_TOKENS_SUMMARY:-150}
+      LLM_MAX_TOKENS_RECOMMENDATION: ${LLM_MAX_TOKENS_RECOMMENDATION:-200}
+      
+      # JWT Configuration
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       
       # Application
       LOG_LEVEL: ${LOG_LEVEL:-WARNING}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
       
-      # Redis Cache
+      # Redis Cache - uses internal Docker network
       REDIS_URL: redis://redis:6379/0
+      CACHE_ENABLED: ${CACHE_ENABLED:-true}
     depends_on:
       db:
         condition: service_healthy

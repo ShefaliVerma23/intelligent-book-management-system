@@ -1,10 +1,16 @@
 """
 Test configuration and fixtures
+
+Provides:
+- Test database setup with SQLite
+- Async test client
+- Test fixtures for users, books, reviews
+- Authentication helpers
 """
 import pytest
 import pytest_asyncio
 import asyncio
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Dict
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -86,7 +92,8 @@ async def test_user(db_session: AsyncSession) -> User:
         email="test@example.com",
         full_name="Test User",
         preferred_genres='["Fiction", "Science Fiction"]',
-        is_active=True
+        is_active=True,
+        is_admin=False
     )
     user.set_password("testpassword123")
     
@@ -155,7 +162,7 @@ async def test_review(db_session: AsyncSession, test_user: User, test_book: Book
         book_id=test_book.id,
         user_id=test_user.id,
         rating=4.5,
-        review_text="This book is really good and I enjoyed reading it."
+        review_text="This book is really good and I enjoyed reading it very much."
     )
     
     db_session.add(review)
@@ -164,14 +171,32 @@ async def test_review(db_session: AsyncSession, test_user: User, test_book: Book
     return review
 
 
-@pytest_asyncio.fixture
-async def auth_headers(async_client: AsyncClient, test_user: User) -> dict:
-    """Get authentication headers for a test user"""
-    response = await async_client.post(
+async def get_auth_token(client: AsyncClient, username: str, password: str) -> str:
+    """Helper function to get authentication token"""
+    response = await client.post(
         "/api/v1/auth/login",
-        data={"username": "testuser", "password": "testpassword123"}
+        data={"username": username, "password": password}
     )
     if response.status_code == 200:
-        token = response.json()["access_token"]
+        return response.json()["access_token"]
+    return ""
+
+
+async def get_auth_headers(client: AsyncClient, username: str, password: str) -> Dict[str, str]:
+    """Helper function to get authentication headers"""
+    token = await get_auth_token(client, username, password)
+    if token:
         return {"Authorization": f"Bearer {token}"}
     return {}
+
+
+@pytest_asyncio.fixture
+async def auth_headers(async_client: AsyncClient, test_user: User) -> Dict[str, str]:
+    """Get authentication headers for test user"""
+    return await get_auth_headers(async_client, "testuser", "testpassword123")
+
+
+@pytest_asyncio.fixture
+async def admin_auth_headers(async_client: AsyncClient, test_admin_user: User) -> Dict[str, str]:
+    """Get authentication headers for admin user"""
+    return await get_auth_headers(async_client, "admin", "adminpassword123")

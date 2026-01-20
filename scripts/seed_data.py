@@ -17,8 +17,12 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Get database URL
-database_url = os.getenv("DATABASE_URL", "postgresql://localhost/book_management")
+# Get database URL - REQUIRED from environment
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    print("❌ Error: DATABASE_URL environment variable is required.")
+    print("   Please set it in your .env file or environment.")
+    sys.exit(1)
 
 # Remove channel_binding parameter if present
 if "channel_binding" in database_url:
@@ -51,9 +55,10 @@ try:
     # ========== ADD USERS ==========
     print("\n👤 Adding users...")
     
-    # Hash for password "password123" using bcrypt
-    # In real scenario, use passlib to generate this
-    password_hash = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYQqzQzJzJzK"
+    # Generate bcrypt hash for demo password dynamically
+    import bcrypt
+    demo_password = "password123"  # Demo password - change in production!
+    password_hash = bcrypt.hashpw(demo_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     
     users_data = [
         ("shefaliverma", "shefali@example.com", password_hash, "Shefali Verma", "Book lover and developer", "Fiction, Technology", True, True),

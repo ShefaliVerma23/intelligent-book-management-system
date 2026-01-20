@@ -107,9 +107,18 @@ async def get_recommendations_by_history(
     
     Uses collaborative filtering to find books in genres the user
     has rated highly.
+    
+    Users can only access their own recommendations unless they are admins.
     """
     auth_service = AuthService(db)
-    await auth_service.get_current_active_user(credentials)
+    current_user = await auth_service.get_current_active_user(credentials)
+    
+    # Authorization check: users can only get their own recommendations
+    if user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(
+            status_code=404,  # Return 404 to avoid revealing user existence
+            detail="User not found or access denied"
+        )
     
     recommendation_service = RecommendationService(db)
     return await recommendation_service.get_books_by_user_history(

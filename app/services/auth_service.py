@@ -29,7 +29,7 @@ class AuthService:
             expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         
         to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
+        encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
         return encoded_jwt
     
     async def authenticate_user(self, username: str, password: str) -> Optional[User]:
@@ -45,7 +45,11 @@ class AuthService:
         )
         
         try:
-            payload = jwt.decode(credentials.credentials, settings.SECRET_KEY, algorithms=["HS256"])
+            payload = jwt.decode(
+                credentials.credentials, 
+                settings.SECRET_KEY, 
+                algorithms=[settings.JWT_ALGORITHM]
+            )
             username: str = payload.get("sub")
             if username is None:
                 raise credentials_exception

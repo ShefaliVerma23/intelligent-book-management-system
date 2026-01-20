@@ -16,8 +16,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Get database URL
-database_url = os.getenv("DATABASE_URL", "postgresql://localhost/book_management")
+# Get database URL - REQUIRED from environment
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    print("❌ Error: DATABASE_URL environment variable is required.")
+    print("   Please set it in your .env file or environment.")
+    sys.exit(1)
+
 if "channel_binding" in database_url:
     database_url = re.sub(r'[&?]channel_binding=[^&]*', '', database_url)
 

@@ -246,14 +246,17 @@ Includes additional features:
 
 ### Sample Environment File
 
+See `sample.env` for a complete template. Key variables:
+
 ```env
-# Database Configuration
-POSTGRES_USER=bookadmin
-POSTGRES_PASSWORD=BookPass@2024Secure
+# Database Configuration (REQUIRED - use your own secure values)
+POSTGRES_USER=your_db_username
+POSTGRES_PASSWORD=your_secure_db_password
 POSTGRES_DB=intelligent_books_db
 
-# Security Configuration
-SECRET_KEY=f8a7b3c9d2e1f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8
+# Security Configuration (REQUIRED - generate your own secret key)
+# Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+SECRET_KEY=your_generated_secret_key_here
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 
 # AI Configuration (Optional - for Llama3 summaries)
@@ -288,10 +291,10 @@ When using Docker Compose, PostgreSQL is automatically configured.
 -- Connect to PostgreSQL
 psql -U postgres
 
--- Create database and user
+-- Create database and user (use your own secure credentials!)
 CREATE DATABASE intelligent_books_db;
-CREATE USER bookadmin WITH PASSWORD 'BookPass@2024Secure';
-GRANT ALL PRIVILEGES ON DATABASE intelligent_books_db TO bookadmin;
+CREATE USER your_db_user WITH PASSWORD 'your_secure_password';
+GRANT ALL PRIVILEGES ON DATABASE intelligent_books_db TO your_db_user;
 
 -- Exit
 \q
